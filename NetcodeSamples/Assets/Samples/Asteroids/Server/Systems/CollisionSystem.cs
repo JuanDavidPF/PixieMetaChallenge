@@ -1,14 +1,14 @@
 using Unity.Assertions;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
-using Unity.Entities;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Mathematics;
+using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
-using Unity.Transforms;
+using Unity.Mathematics;
 using Unity.NetCode;
+using Unity.Transforms;
 
 namespace Asteroids.Server
 {
@@ -18,11 +18,15 @@ namespace Asteroids.Server
     public partial struct CollisionSystem : ISystem
     {
         private EntityQuery shipQuery;
+
         private EntityQuery bulletQuery;
+
         private EntityQuery asteroidQuery;
+
         private EntityQuery m_LevelQuery;
 
         private NativeQueue<Entity> playerClearQueue;
+
         private EntityQuery settingsQuery;
 
         ComponentTypeHandle<BulletAgeComponent> bulletAgeType;
@@ -30,19 +34,23 @@ namespace Asteroids.Server
         ComponentTypeHandle<LocalTransform> transformType;
 
         ComponentTypeHandle<GhostOwner> ghostOwnerType;
+
         ComponentTypeHandle<StaticAsteroid> staticAsteroidType;
+
         ComponentTypeHandle<CollisionSphereComponent> sphereType;
+
         ComponentTypeHandle<PlayerIdComponentData> playerIdType;
+
         EntityTypeHandle entityType;
 
         ComponentLookup<CommandTarget> commandTarget;
+
         BufferLookup<LinkedEntityGroup> linkedEntityGroupFromEntity;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             var builder = new EntityQueryBuilder(Allocator.Temp)
-
                 .WithAll<LocalTransform, CollisionSphereComponent, ShipTagComponentData, GhostOwner>();
 
             shipQuery = state.GetEntityQuery(builder);
@@ -96,20 +104,31 @@ namespace Asteroids.Server
         internal struct DestroyAsteroidJob : IJobChunk
         {
             public EntityCommandBuffer.ParallelWriter commandBuffer;
+
+            [ReadOnly] public ComponentTypeHandle<GhostOwner> ghostOwnerType;
+
             [ReadOnly] public NativeList<ArchetypeChunk> bulletChunks;
+
             [ReadOnly] public ComponentTypeHandle<BulletAgeComponent> bulletAgeType;
 
             [ReadOnly] public ComponentTypeHandle<LocalTransform> transformType;
 
             [ReadOnly] public ComponentTypeHandle<StaticAsteroid> staticAsteroidType;
+
             [ReadOnly] public ComponentTypeHandle<CollisionSphereComponent> sphereType;
+
             [ReadOnly] public EntityTypeHandle entityType;
 
             [ReadOnly] public NativeList<LevelComponent> level;
+
             [NativeSetThreadIndex] public int ThreadIndex;
+
             [NativeDisableParallelForRestriction] public NativeArray<int> asteroidDestructCounter;
+
             public NetworkTick tick;
+
             public float fixedDeltaTime;
+
             public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
             {
                 // This job is not written to support queries with enableable component types.
@@ -129,7 +148,6 @@ namespace Asteroids.Server
                 }
                 else
                 {
-
                     var asteroidPos = chunk.GetNativeArray(ref transformType);
                     for (int asteroid = 0; asteroid < asteroidPos.Length; ++asteroid)
                     {
@@ -140,6 +158,7 @@ namespace Asteroids.Server
                     }
                 }
             }
+
             private void CheckCollisions(int unfilteredChunkIndex, Entity asteroidEntity, float2 firstPos, float firstRadius)
             {
                 if (firstPos.x - firstRadius < 0 || firstPos.y - firstRadius < 0 ||
@@ -149,15 +168,19 @@ namespace Asteroids.Server
                     commandBuffer.DestroyEntity(unfilteredChunkIndex, asteroidEntity);
                     return;
                 }
+
                 // TODO: can check asteroid / asteroid here if required
                 for (int bc = 0; bc < bulletChunks.Length; ++bc)
                 {
+                    var bulletGhostOwner = bulletChunks[bc].GetNativeArray(ref ghostOwnerType);
+
                     var bulletEntities = bulletChunks[bc].GetNativeArray(entityType);
                     var bulletAge = bulletChunks[bc].GetNativeArray(ref bulletAgeType);
 
                     var bulletTrans = bulletChunks[bc].GetNativeArray(ref transformType);
 
                     var bulletSphere = bulletChunks[bc].GetNativeArray(ref sphereType);
+
                     for (int bullet = 0; bullet < bulletAge.Length; ++bullet)
                     {
                         if (bulletAge[bullet].age > bulletAge[bullet].maxAge)
@@ -169,29 +192,41 @@ namespace Asteroids.Server
                         if (Intersect(firstRadius, secondRadius, firstPos, secondPos))
                         {
                             commandBuffer.DestroyEntity(unfilteredChunkIndex, asteroidEntity);
-                            asteroidDestructCounter[ThreadIndex]++;
 
-                            if(level[0].bulletsDestroyedOnContact)
+                            if (bulletGhostOwner[bullet].NetworkId != -1)
+                            {
+                                asteroidDestructCounter[ThreadIndex]++;
+                            }
+
+                            if (level[0].bulletsDestroyedOnContact)
                                 commandBuffer.DestroyEntity(unfilteredChunkIndex, bulletEntities[bullet]);
                         }
                     }
                 }
             }
         }
+
         [BurstCompile]
         internal struct DestroyShipJob : IJobChunk
         {
             public EntityCommandBuffer.ParallelWriter commandBuffer;
+
             [ReadOnly] public NativeList<ArchetypeChunk> asteroidChunks;
+
             [ReadOnly] public NativeList<ArchetypeChunk> bulletChunks;
+
             [ReadOnly] public ComponentTypeHandle<BulletAgeComponent> bulletAgeType;
 
             [ReadOnly] public ComponentTypeHandle<LocalTransform> transformType;
 
             [ReadOnly] public ComponentTypeHandle<GhostOwner> ghostOwnerType;
+
             [ReadOnly] public ComponentTypeHandle<StaticAsteroid> staticAsteroidType;
+
             [ReadOnly] public ComponentTypeHandle<CollisionSphereComponent> sphereType;
+
             [ReadOnly] public ComponentTypeHandle<PlayerIdComponentData> playerIdType;
+
             [ReadOnly] public EntityTypeHandle entityType;
 
             [ReadOnly] public NativeList<ServerSettings> serverSettings;
@@ -199,8 +234,11 @@ namespace Asteroids.Server
             public NativeQueue<Entity>.ParallelWriter playerClearQueue;
 
             [ReadOnly] public NativeList<LevelComponent> level;
+
             public NetworkTick tick;
+
             public float fixedDeltaTime;
+
             public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
             {
                 // This job is not written to support queries with enableable component types.
@@ -257,7 +295,7 @@ namespace Asteroids.Server
                                         playerClearQueue.Enqueue(shipPlayerId[ship].PlayerEntity);
                                     commandBuffer.DestroyEntity(unfilteredChunkIndex, shipEntity[ship]);
 
-                                    if(serverSettings[0].levelData.bulletsDestroyedOnContact)
+                                    if (serverSettings[0].levelData.bulletsDestroyedOnContact)
                                         commandBuffer.DestroyEntity(unfilteredChunkIndex, bulletEntities[bullet]);
                                     alive = 0;
                                     break;
@@ -284,7 +322,7 @@ namespace Asteroids.Server
                                         if (shipPlayerId.IsCreated)
                                             playerClearQueue.Enqueue(shipPlayerId[ship].PlayerEntity);
                                         commandBuffer.DestroyEntity(unfilteredChunkIndex, shipEntity[ship]);
-                                        if(serverSettings[0].levelData.asteroidsDestroyedOnShipContact)
+                                        if (serverSettings[0].levelData.asteroidsDestroyedOnShipContact)
                                             commandBuffer.DestroyEntity(unfilteredChunkIndex, asteroidEntity[asteroid]);
                                         alive = 0;
                                         break;
@@ -293,7 +331,6 @@ namespace Asteroids.Server
                             }
                             else
                             {
-
                                 var asteroidTrans = asteroidChunks[ac].GetNativeArray(ref transformType);
                                 for (int asteroid = 0; asteroid < asteroidTrans.Length; ++asteroid)
                                 {
@@ -305,7 +342,7 @@ namespace Asteroids.Server
                                         if (shipPlayerId.IsCreated)
                                             playerClearQueue.Enqueue(shipPlayerId[ship].PlayerEntity);
                                         commandBuffer.DestroyEntity(unfilteredChunkIndex, shipEntity[ship]);
-                                        if(serverSettings[0].levelData.asteroidsDestroyedOnShipContact)
+                                        if (serverSettings[0].levelData.asteroidsDestroyedOnShipContact)
                                             commandBuffer.DestroyEntity(unfilteredChunkIndex, asteroidEntity[asteroid]);
                                         alive = 0;
                                         break;
@@ -322,7 +359,9 @@ namespace Asteroids.Server
         internal struct ClearShipPointerJob : IJob
         {
             public NativeQueue<Entity> playerClearQueue;
+
             public ComponentLookup<CommandTarget> commandTarget;
+
             public BufferLookup<LinkedEntityGroup> linkedEntityGroupFromEntity;
 
             public void Execute()
@@ -346,8 +385,11 @@ namespace Asteroids.Server
         internal struct GatherAsteroidDestructCounter : IJob
         {
             [ReadOnly] public NativeArray<int> asteroidDestructCounter;
+
             public EntityCommandBuffer commandBuffer;
+
             [ReadOnly] public int currentScore;
+
             [ReadOnly] public Entity scoreSingleton;
 
             public void Execute()
@@ -388,7 +430,7 @@ namespace Asteroids.Server
 
             commandTarget.Update(ref state);
             linkedEntityGroupFromEntity.Update(ref state);
-            
+
             int chunkCount = asteroidQuery.CalculateChunkCountWithoutFiltering();
             int maxThreadCount = JobsUtility.ThreadIndexCount;
 
@@ -409,6 +451,7 @@ namespace Asteroids.Server
                 level = level,
                 tick = networkTime.ServerTick,
                 fixedDeltaTime = tickRate.SimulationFixedTimeStep,
+                ghostOwnerType = ghostOwnerType
             };
 
             var serverSettings =

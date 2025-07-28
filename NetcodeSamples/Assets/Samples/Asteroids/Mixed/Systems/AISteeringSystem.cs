@@ -30,71 +30,64 @@ namespace Asteroids.Mixed
         }
 
         [BurstCompile]
-        private partial struct LocatePlayerJob : IJobEntity
+        private partial struct LocateTargetJob : IJobEntity
         {
             [ReadOnly] public NativeArray<LocalTransform> playerShipTransforms;
 
-            public float deltaTime;
-
-            public float shipTurnRate;
+            [ReadOnly] public NativeArray<LocalTransform> asteroidTransforms;
 
             public float detectionRadiusSq;
 
-            public float preferredDistanceSq; // NEW: distance where AI starts coasting
+            public float preferredDistanceSq;
 
-            public void Execute(
-                ref AIShipCommandData aiCommand,
-                in LocalTransform transform)
+            public void Execute(ref AIShipCommandData aiCommand, in LocalTransform transform)
             {
-                if (playerShipTransforms.Length == 0)
-                {
-                    aiCommand.left = 0;
-                    aiCommand.right = 0;
-                    aiCommand.thrust = 0;
-                    aiCommand.shoot = 0;
-                    return;
-                }
-
                 var myPos = transform.Position;
-                var closestPos = playerShipTransforms[0].Position;
-                var minDistSq = math.distancesq(myPos, closestPos);
+                float3? targetPos = null;
+                var minDistSq = float.MaxValue;
 
-                for (var i = 1; i < playerShipTransforms.Length; i++)
+                // Look for player ships within detection radius
+                for (var i = 0; i < playerShipTransforms.Length; i++)
                 {
                     var pos = playerShipTransforms[i].Position;
                     var distSq = math.distancesq(myPos, pos);
-                    if (distSq < minDistSq)
+                    if (distSq < detectionRadiusSq && distSq < minDistSq)
                     {
                         minDistSq = distSq;
-                        closestPos = pos;
+                        targetPos = pos;
                     }
                 }
 
-                if (minDistSq > detectionRadiusSq)
+                // If no player found, look for closest asteroid
+                if (!targetPos.HasValue && asteroidTransforms.Length > 0)
                 {
-                    aiCommand.left = 0;
-                    aiCommand.right = 0;
-                    aiCommand.thrust = 0;
-                    aiCommand.shoot = 0;
+                    for (var i = 0; i < asteroidTransforms.Length; i++)
+                    {
+                        var pos = asteroidTransforms[i].Position;
+                        var distSq = math.distancesq(myPos, pos);
+                        if (distSq < minDistSq)
+                        {
+                            minDistSq = distSq;
+                            targetPos = pos;
+                        }
+                    }
+                }
+
+                if (!targetPos.HasValue)
+                {
+                    aiCommand = default;
                     return;
                 }
 
-                var toTarget = math.normalize(closestPos - myPos);
+                var toTarget = math.normalize(targetPos.Value - myPos);
                 var forward = math.mul(transform.Rotation, new float3(0, -1, 0));
-
                 var angle = math.atan2(toTarget.x, toTarget.y) - math.atan2(forward.x, forward.y);
                 angle = math.atan2(math.sin(angle), math.cos(angle));
 
-                var maxRotation = math.radians(shipTurnRate) * deltaTime;
-
                 aiCommand.left = (byte)(angle > 0.01f ? 1 : 0);
                 aiCommand.right = (byte)(angle < -0.01f ? 1 : 0);
-
-                // ✅ THRUST if far, stop if within preferred range
                 aiCommand.thrust = (byte)(minDistSq > preferredDistanceSq ? 1 : 0);
-
-                // 🧠 Optionally: Only shoot when you're not rotating too much
-                aiCommand.shoot = (byte)(math.abs(angle) > 3.1f ? 1 : 0);
+                aiCommand.shoot = (byte)(math.abs(angle) > 3 ? 1 : 0);
             }
         }
 
@@ -165,23 +158,25 @@ namespace Asteroids.Mixed
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var playerShipTransforms = m_PlayerShipQuery.ToComponentDataArray<LocalTransform>(state.WorldUpdateAllocator);
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
+            var playerShipTransforms = m_PlayerShipQuery.ToComponentDataArray<LocalTransform>(state.WorldUpdateAllocator);
+
+            // Add asteroid query
+            var asteroidQuery = state.GetEntityQuery(ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<AsteroidTagComponentData>());
+            var asteroidTransforms = asteroidQuery.ToComponentDataArray<LocalTransform>(state.WorldUpdateAllocator);
+
             var level = SystemAPI.GetSingleton<LevelComponent>();
-
             float detectionRadiusSq = level.relevancyRadius * level.relevancyRadius;
-            var preferredDistanceSq = 200f * 200f; // Could also become dynamic if desired
+            var preferredDistanceSq = 200f * 200f;
 
-            var locatePlayerJob = new LocatePlayerJob
+            var locateTargetJob = new LocateTargetJob
             {
                 playerShipTransforms = playerShipTransforms,
-                deltaTime = SystemAPI.Time.DeltaTime,
-                shipTurnRate = level.shipRotationRate,
+                asteroidTransforms = asteroidTransforms,
                 detectionRadiusSq = detectionRadiusSq,
                 preferredDistanceSq = preferredDistanceSq
             };
-
-            state.Dependency = locatePlayerJob.ScheduleParallel(state.Dependency);
+            state.Dependency = locateTargetJob.ScheduleParallel(state.Dependency);
 
             var applyAISteering = new ApplyAISteeringJob
             {
@@ -189,7 +184,7 @@ namespace Asteroids.Mixed
                 commandBuffer = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>().CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter(),
                 bulletPrefab = SystemAPI.GetSingleton<AsteroidsSpawner>().Bullet,
                 deltaTime = SystemAPI.Time.DeltaTime,
-                currentTick = networkTime.ServerTick,
+                currentTick = networkTime.ServerTick
             };
 
             state.Dependency = applyAISteering.ScheduleParallel(state.Dependency);

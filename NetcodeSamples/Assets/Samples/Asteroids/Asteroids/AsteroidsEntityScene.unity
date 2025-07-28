@@ -162,7 +162,7 @@ MonoBehaviour:
     initialAISpawnCount: 3
     maxAISpawnCount: 20
     aiSpawnIncreaseRatePerSecond: 1
-    minBulletCooldownTicks: 3
+    minBulletCooldownTicks: 15
     maxBulletCooldownTicks: 100
     bulletCooldownDecreaseRatePerSecond: 1
     initialDetectionRadius: 200
