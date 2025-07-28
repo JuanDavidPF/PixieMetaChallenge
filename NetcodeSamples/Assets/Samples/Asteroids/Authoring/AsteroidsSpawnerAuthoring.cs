@@ -4,6 +4,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class AsteroidsSpawnerAuthoring : MonoBehaviour
 {
+    public GameObject AIShip;
     public GameObject Ship;
     public GameObject Bullet;
     public GameObject Asteroid;
@@ -14,6 +15,7 @@ public class AsteroidsSpawnerAuthoring : MonoBehaviour
         public override void Bake(AsteroidsSpawnerAuthoring authoring)
         {
             AsteroidsSpawner component = default(AsteroidsSpawner);
+            component.AIShip = GetEntity(authoring.AIShip, TransformUsageFlags.Dynamic);
             component.Ship = GetEntity(authoring.Ship, TransformUsageFlags.Dynamic);
             component.Bullet = GetEntity(authoring.Bullet, TransformUsageFlags.Dynamic);
             component.Asteroid = GetEntity(authoring.Asteroid, TransformUsageFlags.Dynamic);
