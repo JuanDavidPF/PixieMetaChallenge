@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 2015968354959500512}
   - component: {fileID: -7054750042840138153}
   - component: {fileID: 7980938320660419696}
-  - component: {fileID: -4266175332399940725}
   - component: {fileID: -2524839223960682599}
   - component: {fileID: 1957758021791841106}
   - component: {fileID: 7016970071080583259}
@@ -20,7 +19,7 @@ GameObject:
   - component: {fileID: -5231493766772932575}
   - component: {fileID: 5941306285269308673}
   - component: {fileID: 4277607168032350576}
-  - component: {fileID: -7381952876392293034}
+  - component: {fileID: 1777022633022992116}
   m_Layer: 0
   m_Name: AIShip
   m_TagString: Untagged
@@ -83,11 +82,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ComponentOverrides:
-  - FullTypeName: AIShipTagComponentData
-    EntityIndex: 0
-    PrefabType: 7
-    SendTypeOptimization: -1
-    VariantHash: 0
   - FullTypeName: CollisionSphereComponent
     EntityIndex: 0
     PrefabType: 7
@@ -113,18 +107,6 @@ MonoBehaviour:
     PrefabType: 6
     SendTypeOptimization: -1
     VariantHash: 0
---- !u!114 &-4266175332399940725
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 700954011552825696}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c83a06fdfac94b27a7e917c66984ac11, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &-2524839223960682599
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -277,7 +259,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c16549610bfe4458aa9389201d072bb6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &-7381952876392293034
+--- !u!114 &1777022633022992116
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -286,7 +268,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 700954011552825696}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 783dd77dfc3089e438b322de6037c713, type: 3}
+  m_Script: {fileID: 11500000, guid: 16d3d2ee0ac1437f98c4bb12b5931518, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1 &8119192146171670656

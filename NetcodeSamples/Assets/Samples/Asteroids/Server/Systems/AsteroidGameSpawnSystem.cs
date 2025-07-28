@@ -58,7 +58,7 @@ namespace Asteroids.Server
             m_ShipQuery = state.GetEntityQuery(builder);
 
             builder.Reset();
-            builder.WithAll<LocalTransform, ShipStateComponentData, AIShipTagComponentData>();
+            builder.WithAll<LocalTransform, ShipStateComponentData, AIShipCommandData>();
 
             m_AIShipQuery = state.GetEntityQuery(builder);
 
@@ -324,7 +324,7 @@ namespace Asteroids.Server
 
                     var aiEntity = ecb.Instantiate(shipPrefab);
                     ecb.SetComponent(aiEntity, trans);
-
+                    ecb.AddComponent(aiEntity, new GhostOwner { NetworkId = -1 });
                     shipTransforms.Add(trans);
                     spawned++;
 
