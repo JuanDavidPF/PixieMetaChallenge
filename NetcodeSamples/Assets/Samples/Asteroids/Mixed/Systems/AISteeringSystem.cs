@@ -38,6 +38,10 @@ namespace Asteroids.Mixed
 
             public float shipTurnRate;
 
+            public float detectionRadiusSq;
+
+            public float preferredDistanceSq; // NEW: distance where AI starts coasting
+
             public void Execute(
                 ref AIShipCommandData aiCommand,
                 in LocalTransform transform)
@@ -47,6 +51,7 @@ namespace Asteroids.Mixed
                     aiCommand.left = 0;
                     aiCommand.right = 0;
                     aiCommand.thrust = 0;
+                    aiCommand.shoot = 0;
                     return;
                 }
 
@@ -65,21 +70,31 @@ namespace Asteroids.Mixed
                     }
                 }
 
-                var toTarget = math.normalize(closestPos - myPos);
+                if (minDistSq > detectionRadiusSq)
+                {
+                    aiCommand.left = 0;
+                    aiCommand.right = 0;
+                    aiCommand.thrust = 0;
+                    aiCommand.shoot = 0;
+                    return;
+                }
 
-                // Forward is Y- if your ship is "pointing up"
+                var toTarget = math.normalize(closestPos - myPos);
                 var forward = math.mul(transform.Rotation, new float3(0, -1, 0));
 
                 var angle = math.atan2(toTarget.x, toTarget.y) - math.atan2(forward.x, forward.y);
-                angle = math.atan2(math.sin(angle), math.cos(angle)); // normalize to [-π, π]
+                angle = math.atan2(math.sin(angle), math.cos(angle));
 
                 var maxRotation = math.radians(shipTurnRate) * deltaTime;
 
-                // Set command flags based on desired angle
                 aiCommand.left = (byte)(angle > 0.01f ? 1 : 0);
                 aiCommand.right = (byte)(angle < -0.01f ? 1 : 0);
-                aiCommand.thrust = 1; // Always move forward (you can add smarter logic)
-                aiCommand.shoot = 0;
+
+                // ✅ THRUST if far, stop if within preferred range
+                aiCommand.thrust = (byte)(minDistSq > preferredDistanceSq ? 1 : 0);
+
+                // 🧠 Optionally: Only shoot when you're not rotating too much
+                aiCommand.shoot = (byte)(math.abs(angle) > 3.1f ? 1 : 0);
             }
         }
 
@@ -96,8 +111,6 @@ namespace Asteroids.Mixed
             public float deltaTime;
 
             public NetworkTick currentTick;
-
-            public byte isFirstFullTick;
 
             public void Execute(Entity entity, [EntityIndexInQuery] int entityIndexInQuery,
                 ref LocalTransform transform, ref Velocity velocity,
@@ -128,7 +141,7 @@ namespace Asteroids.Mixed
                 var canShoot = !state.WeaponCooldown.IsValid || currentTick.IsNewerThan(state.WeaponCooldown);
                 if (inputData.shoot != 0 && canShoot)
                 {
-                    if (bulletPrefab != Entity.Null && isFirstFullTick == 1)
+                    if (bulletPrefab != Entity.Null)
                     {
                         var e = commandBuffer.Instantiate(entityIndexInQuery, bulletPrefab);
                         var bulletTx = transform;
@@ -154,30 +167,32 @@ namespace Asteroids.Mixed
         {
             var playerShipTransforms = m_PlayerShipQuery.ToComponentDataArray<LocalTransform>(state.WorldUpdateAllocator);
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
-
             var level = SystemAPI.GetSingleton<LevelComponent>();
+
+            float detectionRadiusSq = level.relevancyRadius * level.relevancyRadius;
+            var preferredDistanceSq = 200f * 200f; // Could also become dynamic if desired
 
             var locatePlayerJob = new LocatePlayerJob
             {
                 playerShipTransforms = playerShipTransforms,
                 deltaTime = SystemAPI.Time.DeltaTime,
-                shipTurnRate = level.shipRotationRate
+                shipTurnRate = level.shipRotationRate,
+                detectionRadiusSq = detectionRadiusSq,
+                preferredDistanceSq = preferredDistanceSq
             };
 
             state.Dependency = locatePlayerJob.ScheduleParallel(state.Dependency);
 
             var applyAISteering = new ApplyAISteeringJob
             {
-                level = SystemAPI.GetSingleton<LevelComponent>(),
+                level = level,
                 commandBuffer = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>().CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter(),
                 bulletPrefab = SystemAPI.GetSingleton<AsteroidsSpawner>().Bullet,
                 deltaTime = SystemAPI.Time.DeltaTime,
                 currentTick = networkTime.ServerTick,
-                isFirstFullTick = (byte)(networkTime.IsFirstTimeFullyPredictingTick ? 1 : 0)
             };
 
             state.Dependency = applyAISteering.ScheduleParallel(state.Dependency);
-            
         }
     }
 }

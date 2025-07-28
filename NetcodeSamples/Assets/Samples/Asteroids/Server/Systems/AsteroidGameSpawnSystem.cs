@@ -17,7 +17,7 @@ namespace Asteroids.Server
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct AsteroidGameSpawnSystem : ISystem
     {
-        private const int MaxAIShips = 20;
+        private const int MaxAIShips = 10;
 
         EntityQuery m_LevelQuery;
 
